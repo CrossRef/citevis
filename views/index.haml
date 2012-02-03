@@ -1,0 +1,78 @@
+%html
+  %head
+    %script{:type => "text/javascript", :src => "jquery.js"}
+    %script{:type => "text/javascript", :src => "arbor.js"}
+    %script{:type => "text/javascript", :src => "arbor-tween.js"}
+    %script{:type => "text/javascript", :src => "arbor-graphics.js"}
+  %body
+    %canvas#graph{"width" => "1000", "height" => "800"}
+    :javascript
+      var update = function(sys, doi) {
+        $.ajax({
+          type: "post",
+          contentType: "x-doi",
+          processData: false,
+          url: "/doi",
+          data: doi,
+          dataType: "json",
+          success: function(data) {
+            for (var i in data) {
+              var from = data[i]["from"]
+              var to = data[i]["to"]
+
+              if (sys.getNode(from) === undefined) {
+                sys.addNode(from, {label: from, color: "orange", alpha: 255})
+              }
+
+              if (sys.getNode(to) === undefined) {
+                sys.addNode(to, {label: from, color: "orange", alpha: 255})
+              }
+
+              sys.addEdge(from, to)
+            }
+          }
+        })
+      }
+
+      $(document).ready(function() {
+        var canvas = $("#graph").get(0)
+        var ctx = canvas.getContext("2d")
+        var gfx = arbor.Graphics(canvas)
+
+        var sys = arbor.ParticleSystem(1000, 600, 0.5)
+        sys.parameters({gravity:true})
+        sys.renderer = {
+          init: function(sys) {
+            sys.screenSize(canvas.width, canvas.height)
+            sys.screenPadding(80)
+          },
+          redraw: function() {
+            ctx.fillStyle = "white"
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+            sys.eachEdge(function(edge, pt1, pt2) {
+              ctx.strokeStyle = "rgba(0,0,0,.333)"
+              ctx.lineWidth = 1
+              ctx.beginPath()
+              ctx.moveTo(pt1.x, pt1.y)
+              ctx.lineTo(pt2.x, pt2.y)
+              ctx.stroke()
+            })
+
+            sys.eachNode(function(node, pt) {
+              w = Math.max(20, 20 + gfx.textWidth(node.name))
+              gfx.rect(pt.x-w/2, pt.y-8, w, 20, 4, 
+                       {fill:node.data.color, alpha:node.data.alpha})
+              gfx.text(node.name, pt.x, pt.y+9, 
+                       {color:"white", align:"center", font:"Arial", size:12})
+              gfx.text(node.name, pt.x, pt.y+9, 
+                       {color:"white", align:"center", font:"Arial", size:12})
+            })
+          }
+        }
+
+        update(sys, "10.1080/13032917.1997.9687118")
+      })
+
+    
+      
