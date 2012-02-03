@@ -7,41 +7,12 @@
   %body
     %canvas#graph{"width" => "1000", "height" => "800"}
     :javascript
-      var update = function(sys, doi) {
-        $.ajax({
-          type: "post",
-          contentType: "x-doi",
-          processData: false,
-          url: "/doi",
-          data: doi,
-          dataType: "json",
-          success: function(data) {
-            for (var i in data) {
-              var from = data[i]["from"]
-              var to = data[i]["to"]
-
-              if (sys.getNode(from) === undefined) {
-                sys.addNode(from, {label: from, color: "orange", alpha: 255})
-              }
-
-              if (sys.getNode(to) === undefined) {
-                sys.addNode(to, {label: from, color: "orange", alpha: 255})
-              }
-
-              sys.addEdge(from, to)
-            }
-          }
-        })
-      }
-
       $(document).ready(function() {
         var canvas = $("#graph").get(0)
         var ctx = canvas.getContext("2d")
         var gfx = arbor.Graphics(canvas)
 
-        var sys = arbor.ParticleSystem(1000, 600, 0.5)
-        sys.parameters({gravity:true})
-        sys.renderer = {
+        var graphRenderer = {
           init: function(sys) {
             sys.screenSize(canvas.width, canvas.height)
             sys.screenPadding(80)
@@ -60,16 +31,86 @@
             })
 
             sys.eachNode(function(node, pt) {
-              w = Math.max(20, 20 + gfx.textWidth(node.name))
+              var color = "orange"
+              if (node.data.collected === true) {
+                color = "red"
+              }
+
+              text = node.name
+              if (node.data.label !== undefined) {
+                text += " " + node.data.label
+              }
+
+              w = Math.max(20, 20 + gfx.textWidth(text))
               gfx.rect(pt.x-w/2, pt.y-8, w, 20, 4, 
-                       {fill:node.data.color, alpha:node.data.alpha})
-              gfx.text(node.name, pt.x, pt.y+9, 
+                       {fill: color, alpha: 255})
+              gfx.text(text, pt.x, pt.y+9, 
                        {color:"white", align:"center", font:"Arial", size:12})
-              gfx.text(node.name, pt.x, pt.y+9, 
+              gfx.text(text, pt.x, pt.y+9, 
                        {color:"white", align:"center", font:"Arial", size:12})
             })
           }
         }
+
+        var sys = arbor.ParticleSystem(1000, 600, 0.5)
+        sys.parameters({gravity:true})
+        sys.renderer = graphRenderer
+
+        var update = function(sys, doi) {
+          if (sys.getNode(doi) !== undefined) {
+            sys.getNode(doi).data.label = "[opening...]"
+            graphRenderer.redraw()
+          }
+
+          $.ajax({
+            type: "post",
+            contentType: "x-doi",
+            processData: false,
+            url: "/doi",
+            data: doi,
+            dataType: "json",
+            success: function(data) {
+              for (var i in data) {
+                var from = data[i]["from"]
+                var to = data[i]["to"]
+
+                if (sys.getNode(from) === undefined) {
+                  sys.addNode(from, {collected: true, label: ""})
+                } else {
+                  sys.getNode(from).data.collected = true
+                  sys.getNode(from).data.label = ""
+                }
+
+                if (sys.getNode(to) === undefined) {
+                  sys.addNode(to)
+                }
+
+                sys.addEdge(from, to)
+              }
+
+              if (data.length === 0) {
+                if (sys.getNode(doi) === undefined) {
+                  sys.addNode(doi, {collected: true, label: "[No citations]"})
+                } else {
+                  sys.getNode(doi).data.label = "[No citations]"
+                  sys.getNode(doi).data.collected = true
+                }
+              }
+              
+              graphRenderer.redraw()
+            }
+          })
+        }
+
+        $(canvas).mousedown(function(e) {
+          var pos = $(canvas).offset()
+          var mousePos = arbor.Point(e.pageX - pos.left, e.pageY - pos.top)
+          var nearest = sys.nearest(mousePos)
+
+          if (nearest !== null && nearest.node.data.collected !== true) {
+            update(sys, nearest.node.name)
+          }
+        })
 
         update(sys, "10.1080/13032917.1997.9687118")
       })
