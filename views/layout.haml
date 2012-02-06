@@ -1,0 +1,16 @@
+!!!
+%html
+  %head
+    %script{:type => "text/javascript", :src => "jquery.js"}
+    %script{:type => "text/javascript", :src => "arbor.js"}
+    %script{:type => "text/javascript", :src => "arbor-tween.js"}
+    %script{:type => "text/javascript", :src => "arbor-graphics.js"}
+    %script{:type => "text/javascript", :src => "bootstrap.js"}
+    %link{:rel => "stylesheet", :href => "bootstrap.css", :type => "text/css", :media => "screen"}
+  %body
+    .navbar.navbar-fixed-top
+      .navbar-inner
+        .container-fluid
+          %a.brand citevis
+    .container-fluid{:style => "margin-top: 60px"}
+      = yield

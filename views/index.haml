@@ -1,11 +1,28 @@
-%html
-  %head
-    %script{:type => "text/javascript", :src => "jquery.js"}
-    %script{:type => "text/javascript", :src => "arbor.js"}
-    %script{:type => "text/javascript", :src => "arbor-tween.js"}
-    %script{:type => "text/javascript", :src => "arbor-graphics.js"}
-  %body
-    %canvas#graph{"width" => "1000", "height" => "800"}
+.row-fluid
+  .span4
+    .well
+      %h3#bibo-title
+      .bibo-publication
+        %h6 Published in
+        %span#bibo-publication-text
+      .bibo-pages
+        %h6 On Pages
+        %span#bibo-pages-text
+      .bibo-date
+        %h6 Publication Date
+        %span#bibo-date-text
+      .bibo-authors
+        %h6 Authors
+        %ul#bibo-authors-list
+      %h6 Links
+      %ul
+        %li
+          %a#bibo-publisher-link Publisher's site
+  .span8
+    %form.well.form-search#doi-form
+      %input.input-large.search-query#doi{:type => "text"} 10.1891/jnum.10.2.83.52557
+      %button.btn{:type => "submit"} Go
+    %canvas#graph{"width" => "800", "height" => "800"}
     :javascript
       $(document).ready(function() {
         var canvas = $("#graph").get(0)
@@ -37,11 +54,22 @@
               }
 
               text = node.name
+              
+              if (node.data.title !== undefined) {
+                text = node.data.title.substring(0, 10)
+              }
+
               if (node.data.label !== undefined) {
                 text += " " + node.data.label
               }
 
               w = Math.max(20, 20 + gfx.textWidth(text))
+
+              if (node.data.selected === true) {
+                gfx.rect(pt.x - w / 2 - 5, pt.y - 13, w + 10, 30, 4,
+                         {fill: "blue", alpha: 255})
+              }
+              
               gfx.rect(pt.x-w/2, pt.y-8, w, 20, 4, 
                        {fill: color, alpha: 255})
               gfx.text(text, pt.x, pt.y+9, 
@@ -56,7 +84,7 @@
         sys.parameters({gravity:true})
         sys.renderer = graphRenderer
 
-        var update = function(sys, doi) {
+        var updateGraph = function(doi) {
           if (sys.getNode(doi) !== undefined) {
             sys.getNode(doi).data.label = "[opening...]"
             graphRenderer.redraw()
@@ -66,7 +94,7 @@
             type: "post",
             contentType: "x-doi",
             processData: false,
-            url: "/doi",
+            url: "/refs",
             data: doi,
             dataType: "json",
             success: function(data) {
@@ -75,14 +103,17 @@
                 var to = data[i]["to"]
 
                 if (sys.getNode(from) === undefined) {
-                  sys.addNode(from, {collected: true, label: ""})
+                  sys.addNode(from, {collected: true, selected: true, label: ""})
+                  getBibo(from, true)
                 } else {
                   sys.getNode(from).data.collected = true
+                  //sys.getNode(from).data.selected = true
                   sys.getNode(from).data.label = ""
                 }
 
                 if (sys.getNode(to) === undefined) {
                   sys.addNode(to)
+                  getBibo(to, false)
                 }
 
                 sys.addEdge(from, to)
@@ -102,17 +133,118 @@
           })
         }
 
+        var getBibo = function(doi, displayAfter) {
+          $.ajax({
+            type: "post",
+            contentType: "x-doi",
+            data: doi,
+            processData: false,
+            url: "/bibo",
+            dataType: "json",
+            success: function(data) {
+              var node = sys.getNode(doi)
+              node.data.bibo = data
+              if (data["title"] !== undefined) {
+                node.data.title = data["title"]
+                graphRenderer.redraw()              
+              }
+
+              if (displayAfter) {
+                updateBibo(doi)
+              }
+            }
+          })
+        }
+
+        var updateBibo = function(doi) {
+          if (sys.getNode(doi).data["bibo"] === undefined) {
+            getBibo(doi, true)
+            return
+          }
+
+          var data = sys.getNode(doi).data.bibo
+          
+          if (data["title"] !== undefined) {
+            $("#bibo-title").text(data["title"])
+          }
+
+          if (data["DOI"] !== undefined) {
+            $("#bibo-publisher-link").attr("href", "http://dx.doi.org/" + data["DOI"])
+          }
+
+          if (data["container-title"] !== undefined) {
+            $("#bibo-publication-text").text(data["container-title"])
+            $("#bibo-publication").show()
+          } else {
+            $("bibo-publication").hide()
+          }
+
+          if (data["issued"] !== undefined) {
+            $("#bibo-date-text").text(data["issued"]["date-parts"][0][0])
+            $("#bibo-date").show()
+          } else {
+            $("bibo-date").hide()
+          }
+
+          if (data["page"] !== undefined) {
+            $("#bibo-pages-text").text(data["page"])
+            $("#bibo-pages").show()
+          } else {
+            $("bibo-pages").hide()
+          }
+
+          if (data["author"] !== undefined) {
+            $("#bibo-authors-list").html("")
+
+            for (var idx in data["author"]) {
+              var html = "<li>"
+
+              if (data["author"][idx]["given"] !== undefined) {
+                html += data["author"][idx]["given"] + " "
+              }
+                  
+              if (data["author"][idx]["family"] !== undefined) {
+                html += data["author"][idx]["family"]
+              }
+                  
+              if (html !== "<li>") {
+                html += "</li>"
+                $("#bibo-authors-list").append(html)
+              }
+            }                
+
+            $("#bibo-authors").show()
+          } else {
+            $("bibo-authors").hide()
+          }
+        }
+
         $(canvas).mousedown(function(e) {
           var pos = $(canvas).offset()
           var mousePos = arbor.Point(e.pageX - pos.left, e.pageY - pos.top)
           var nearest = sys.nearest(mousePos)
 
-          if (nearest !== null && nearest.node.data.collected !== true) {
-            update(sys, nearest.node.name)
+          if (nearest !== null) {
+            if (nearest.node.data.collected !== true) {
+              updateGraph(nearest.node.name)
+            }
+
+            sys.eachNode(function(node, p) {
+              node.data.selected = false
+            })
+            nearest.node.data.selected = true
+            graphRenderer.redraw()
+
+            updateBibo(nearest.node.name)
           }
+          return false
         })
 
-        update(sys, "10.1080/13032917.1997.9687118")
+        $("#doi-form").submit(function() {
+          var doi = $("#doi").val()
+          updateGraph(doi)
+          return false
+        })
       })
 
     

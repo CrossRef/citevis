@@ -1,6 +1,8 @@
 require "sinatra"
 require "mongo"
 require "json"
+require "net/http"
+require "uri"
 
 configure do
   conn = Mongo::Connection.new("192.168.1.152")
@@ -18,8 +20,11 @@ helpers do
 
 end
 
-post "/doi" do
-  doi = request.body.read.strip
+post "/refs" do
+  doi = env["rack.input"].read.strip
+  doi = doi.gsub /^http:\/\/dx\.doi\.org\//, ""
+  doi = doi.gsub /^dx\.doi\.org\//, ""
+  doi = doi.gsub /^doi:/, ""
   
   coll = settings.citations
   docs = coll.find({"from.doi" => doi, "to.doi" => {"$exists" => true}})
@@ -36,8 +41,20 @@ post "/doi" do
   data_response citations
 end
 
-get "/:doi" do
-  # TODO start visualisation with a DOI
+post "/bibo" do
+  doi = env["rack.input"].read.strip
+  doi = doi.gsub /^http:\/\/dx\.doi\.org\//, ""
+  doi = doi.gsub /^dx\.doi\.org\//, ""
+  doi = doi.gsub /^doi:/, ""
+
+  response = Net::HTTP.start("data.crossref.org") do |http|
+    req = Net::HTTP::Get.new "/#{URI.escape(doi)}", {
+      "Accept" => "application/citeproc+json"
+    }
+    http.request req
+  end
+
+  data_response JSON.parse(response.body)
 end
 
 get "/" do
