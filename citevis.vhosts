@@ -1,0 +1,14 @@
+<VirtualHost *:80>
+  ServerName            citevis.crrd.dyndns.org
+  AllowEncodedSlashes   On
+  UseCanonicalName      Off
+
+  DocumentRoot          /home/kward/citevis/public
+  
+  <Directory /home/kward/citevis/public>
+    Allow from all
+    Options -MultiViews
+  </Directory>
+
+  PassengerMinInstances 15
+</VirtualHost>

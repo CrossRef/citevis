@@ -8,7 +8,19 @@ configure do
   conn = Mongo::Connection.new("192.168.1.152")
   
   set :conn, conn
-  set :citations, conn["crossref"]["citations"] 
+  set :citations, conn["crossref"]["citations"]
+
+  if defined?(PhusionPassenger)
+    PhusionPassenger.on_event(:starting_worker_process) do |forked|
+      conn = Mongo::Connection.new("192.168.1.152")
+      set :conn, conn
+      set :citations, conn["crossref"]["citations"]
+    end
+  else
+    conn = Mongo::Connection.new("192.168.1.152")
+    set :conn, conn
+    set :citations, conn["crossref"]["citations"]
+  end
 end
 
 helpers do
